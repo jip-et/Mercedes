@@ -1,20 +1,20 @@
-const { malvin } = require('../malvin');
+const config = require('../config');
+const { cmd } = require('../command');
 const { ytsearch } = require('@dark-yasiya/yt-dl.js');
 const axios = require('axios');
 const fs = require('fs');
 const path = require('path');
 const ffmpeg = require('fluent-ffmpeg');
 
-// YouTube download function with multiple API fallbacks
-malvin({
+cmd({
     pattern: "play",
-    alias: ["ytplay", "ytmp3", "song", "audio"],
+    alias: ["ytplay", "ytmp3", "song", "audio", "yta"],
     react: "🎵",
-    desc: "Download YouTube audio by name or link",
+    desc: "Download YouTube audio with multiple API fallbacks",
     category: "download",
     use: '.play <song name or YouTube URL>',
     filename: __filename
-}, async (malvin, mek, m, { from, reply, q }) => {
+}, async (conn, mek, m, { from, reply, q }) => {
     try {
         let input = q || (m.quoted && m.quoted.text?.trim());
         if (!input) return reply("❌ *Please enter a song name or YouTube link!*");
@@ -32,16 +32,16 @@ malvin({
         const views = vid.views || "Unknown";
         const author = vid.author?.name || "Unknown";
         
-        const outputPath = path.join(__dirname, 'temp', `${Date.now()}_${title}.mp3`);
+        const outputPath = path.join(__dirname, '..', 'temp', `${Date.now()}_${title}.mp3`);
         
         // Create temp directory if it doesn't exist
-        const tempDir = path.join(__dirname, 'temp');
+        const tempDir = path.join(__dirname, '..', 'temp');
         if (!fs.existsSync(tempDir)) {
             fs.mkdirSync(tempDir, { recursive: true });
         }
 
         // Send video info
-        await malvin.sendMessage(from, {
+        await conn.sendMessage(from, {
             image: { url: vid.thumbnail },
             caption: `
 ╭───〘 🎬 𝚈𝙾𝚄𝚃𝚄𝙱𝙴 𝙸𝙽𝙵𝙾 〙───◆
@@ -66,7 +66,6 @@ malvin({
         ];
 
         let success = false;
-        let usedApi = "";
 
         for (const api of apis) {
             try {
@@ -85,7 +84,6 @@ malvin({
                     continue;
                 }
 
-                usedApi = api;
                 console.log(`Downloading from: ${audioUrl}`);
 
                 // Download and convert audio
@@ -115,9 +113,6 @@ malvin({
                             console.error('FFmpeg error:', err);
                             reject(err);
                         })
-                        .on('progress', (progress) => {
-                            console.log(`Processing: ${progress.percent}% done`);
-                        })
                         .save(outputPath);
                 });
 
@@ -134,7 +129,7 @@ malvin({
                 console.log(`File created successfully: ${outputPath} (${fileStats.size} bytes)`);
 
                 // Send audio file
-                await malvin.sendMessage(from, {
+                await conn.sendMessage(from, {
                     audio: fs.readFileSync(outputPath),
                     mimetype: 'audio/mpeg',
                     fileName: `${title}.mp3`,
@@ -146,7 +141,7 @@ malvin({
                 success = true;
                 
                 // Send success reaction
-                await malvin.sendMessage(from, { 
+                await conn.sendMessage(from, { 
                     react: { text: "✅", key: mek.key } 
                 });
                 
@@ -169,13 +164,13 @@ malvin({
                                  res.data?.result;
 
                     if (audioUrl) {
-                        await malvin.sendMessage(from, {
+                        await conn.sendMessage(from, {
                             audio: { url: audioUrl },
                             mimetype: "audio/mpeg",
                             fileName: `${title}.mp3`
                         }, { quoted: mek });
                         
-                        await malvin.sendMessage(from, { 
+                        await conn.sendMessage(from, { 
                             react: { text: "✅", key: mek.key } 
                         });
                         success = true;
@@ -188,7 +183,7 @@ malvin({
         }
 
         if (!success) {
-            await malvin.sendMessage(from, { 
+            await conn.sendMessage(from, { 
                 react: { text: "❌", key: mek.key } 
             });
             reply("🚫 *All download servers failed. Please try again later.*");
@@ -199,49 +194,58 @@ malvin({
         
         // Clean up temp file if it exists
         try {
-            const tempFiles = fs.readdirSync(path.join(__dirname, 'temp'));
-            tempFiles.forEach(file => {
-                if (file.includes('_temp_')) {
-                    fs.unlinkSync(path.join(__dirname, 'temp', file));
-                }
-            });
+            if (fs.existsSync(outputPath)) {
+                fs.unlinkSync(outputPath);
+            }
         } catch (cleanupErr) {
             // Ignore cleanup errors
         }
         
-        await malvin.sendMessage(from, { 
+        await conn.sendMessage(from, { 
             react: { text: "❌", key: mek.key } 
         });
         reply("🚨 *Something went wrong!*\n" + e.message);
     }
 });
 
-// Video download command
-malvin({
-    pattern: "play4",
-    alias: ["ytmp4", "ytvideo"],
-    react: "🎬",
-    desc: "Download YouTube video",
-    category: "download",
-    use: '.play4 <video name or YouTube URL>',
-    filename: __filename
-}, async (malvin, mek, m, { from, reply, q }) => {
+// Enhanced play4 command with multiple APIs
+cmd({ 
+    pattern: "play4", 
+    alias: ["ytmp4", "ytvideo", "yta4"], 
+    react: "🎬", 
+    desc: "Download YouTube video with multiple API fallbacks", 
+    category: "download", 
+    use: '.play4 <video name or YouTube URL>', 
+    filename: __filename 
+}, async (conn, mek, m, { from, reply, q }) => { 
     try {
         let input = q || (m.quoted && m.quoted.text?.trim());
         if (!input) return reply("❌ *Please enter a video name or YouTube link!*");
 
         await reply("🔍 *Searching YouTube...*");
 
-        // Search YouTube
-        const search = await ytsearch(input);
-        const vid = search?.results?.[0];
-        if (!vid || !vid.url) return reply("❌ *No results found!*");
+        let videoUrl = '';
+        let vid;
+
+        // Handle both search and direct URL
+        if (/^(https?:\/\/)?(www\.)?(youtube\.com|youtu\.be)\//i.test(input)) {
+            videoUrl = input.trim();
+            // For direct URLs, we need to get video info
+            const search = await ytsearch(input);
+            vid = search?.results?.[0];
+        } else {
+            const search = await ytsearch(input);
+            vid = search?.results?.[0];
+            if (!vid) return reply("❌ *No results found!*");
+            videoUrl = vid.url;
+        }
+
+        if (!vid) return reply("❌ *Could not get video information!*");
 
         const title = vid.title.replace(/[^\w\s.-]/gi, "").slice(0, 50);
-        const videoUrl = vid.url;
 
         // Send video info
-        await malvin.sendMessage(from, {
+        await conn.sendMessage(from, {
             image: { url: vid.thumbnail },
             caption: `
 ╭───〘 🎬 𝚈𝙾𝚄𝚃𝚄𝙱𝙴 𝚅𝙸𝙳𝙴𝙾 〙───◆
@@ -258,7 +262,8 @@ malvin({
         const videoApis = [
             `https://jawad-tech.vercel.app/download/ytmp4?url=${videoUrl}`,
             `https://apis.davidcyriltech.my.id/youtube/mp4?url=${videoUrl}`,
-            `https://api.ryzendesu.vip/api/downloader/ytmp4?url=${videoUrl}`
+            `https://api.ryzendesu.vip/api/downloader/ytmp4?url=${videoUrl}`,
+            `https://api.dreaded.site/api/ytdl/video?url=${videoUrl}`
         ];
 
         let success = false;
@@ -267,18 +272,20 @@ malvin({
             try {
                 const res = await axios.get(api, { timeout: 30000 });
                 
-                let videoUrl = res.data?.result?.download || 
-                             res.data?.downloadUrl ||
-                             res.data?.url;
+                let downloadUrl = res.data?.result?.download || 
+                                res.data?.downloadUrl ||
+                                res.data?.url ||
+                                res.data?.result?.url ||
+                                res.data?.videoUrl;
 
-                if (videoUrl) {
-                    await malvin.sendMessage(from, {
-                        video: { url: videoUrl },
-                        caption: `> *${vid.title}*`,
+                if (downloadUrl) {
+                    await conn.sendMessage(from, {
+                        video: { url: downloadUrl },
+                        caption: `🎬 *${vid.title}*`,
                         fileName: `${title}.mp4`
                     }, { quoted: mek });
 
-                    await malvin.sendMessage(from, { 
+                    await conn.sendMessage(from, { 
                         react: { text: "✅", key: mek.key } 
                     });
                     success = true;
@@ -291,7 +298,7 @@ malvin({
         }
 
         if (!success) {
-            await malvin.sendMessage(from, { 
+            await conn.sendMessage(from, { 
                 react: { text: "❌", key: mek.key } 
             });
             reply("🚫 *All video download servers failed. Please try again later.*");
@@ -299,9 +306,108 @@ malvin({
 
     } catch (e) {
         console.error("❌ Error in .play4 command:", e);
-        await malvin.sendMessage(from, { 
+        await conn.sendMessage(from, { 
             react: { text: "❌", key: mek.key } 
         });
         reply("🚨 *Something went wrong while downloading video!*");
+    }
+});
+
+// Keep the original play2 command but enhance it
+cmd({
+    pattern: "play2",
+    alias: ["yta2", "song2"],
+    react: "🎵",
+    desc: "Download high quality YouTube audio",
+    category: "media",
+    use: "<song name>",
+    filename: __filename
+}, async (conn, mek, m, { from, q, reply }) => {
+    try {
+        if (!q) return reply("Please provide a song name\nExample: .play2 Tum Hi Ho");
+
+        // Step 1: Search YouTube
+        await conn.sendMessage(from, { text: "🔍 Searching for your song..." }, { quoted: mek });
+        const yt = await ytsearch(q);
+        if (!yt?.results?.length) return reply("❌ No results found. Try a different search term.");
+
+        const vid = yt.results[0];
+
+        const caption =
+`*YT AUDIO DOWNLOADER*
+╭━━❐━⪼
+┇๏ *Title*    –  ${vid.title}
+┇๏ *Duration* –  ${vid.timestamp}
+┇๏ *Views*    –  ${vid.views}
+┇๏ *Author*   –  ${vid.author.name}
+╰━━❑━⪼
+> *Downloading Audio File ♡*`;
+
+        // Step 2: Send video info with thumbnail
+        await conn.sendMessage(from, {
+            image: { url: vid.thumbnail },
+            caption
+        }, { quoted: mek });
+
+        // Multiple API fallbacks for play2
+        const apis = [
+            `https://api-aswin-sparky.koyeb.app/api/downloader/song?search=${encodeURIComponent(vid.url)}`,
+            `https://jawad-tech.vercel.app/download/ytmp3?url=${encodeURIComponent(vid.url)}`,
+            `https://apis.davidcyriltech.my.id/youtube/mp3?url=${encodeURIComponent(vid.url)}`
+        ];
+
+        let success = false;
+
+        for (const api of apis) {
+            try {
+                const response = await axios.get(api, { timeout: 30000 });
+                let audioUrl;
+
+                // Handle different API response formats
+                if (api.includes('api-aswin-sparky')) {
+                    audioUrl = response.data?.data?.downloadURL;
+                } else if (api.includes('jawad-tech')) {
+                    audioUrl = response.data?.result;
+                } else {
+                    audioUrl = response.data?.result?.downloadUrl;
+                }
+
+                if (!audioUrl) continue;
+
+                // Download audio
+                const audioRes = await axios({
+                    url: audioUrl,
+                    method: "GET",
+                    responseType: "arraybuffer",
+                    timeout: 60000
+                });
+
+                // Send audio
+                await conn.sendMessage(from, {
+                    audio: audioRes.data,
+                    mimetype: 'audio/mpeg',
+                    ptt: false,
+                    fileName: `${vid.title}.mp3`.replace(/[^\w\s.-]/gi, '')
+                }, { quoted: mek });
+
+                success = true;
+                await conn.sendMessage(from, { react: { text: "✅", key: mek.key } });
+                break;
+
+            } catch (err) {
+                console.warn(`Play2 API failed: ${api} -`, err.message);
+                continue;
+            }
+        }
+
+        if (!success) {
+            await conn.sendMessage(from, { react: { text: "❌", key: mek.key } });
+            reply("❌ All download attempts failed. Please try again later.");
+        }
+
+    } catch (error) {
+        console.error('Play2 command error:', error);
+        reply("⚠️ An unexpected error occurred. Please try again.");
+        await conn.sendMessage(from, { react: { text: "❌", key: mek.key } });
     }
 });
