@@ -44,6 +44,9 @@ const {
   const Crypto = require('crypto')
   const path = require('path')
   const prefix = config.PREFIX
+  const chalk = require('chalk');
+  const fs = require('fs');
+  const path = require('path');
   // const { commands } = require('./command');
   const ownerNumber = ['923493114170']
 
@@ -221,8 +224,8 @@ async function connectToWA() {
             const reason = lastDisconnect?.error?.output?.statusCode;
             if (reason === DisconnectReason.loggedOut) {
                 console.log(chalk.red('[ 🛑 ] Connection closed, please change session ID or re-authenticate'));
-                if (fsSync.existsSync(credsPath)) {
-                    fsSync.unlinkSync(credsPath);
+                if (fs.existsSync(credsPath)) {
+                    fs.unlinkSync(credsPath);
                 }
                 process.exit(1);
             } else {
