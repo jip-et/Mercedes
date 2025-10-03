@@ -90,8 +90,8 @@ const sessionDir = path.join(__dirname, 'sessions');
 const credsPath = path.join(sessionDir, 'creds.json');
 
 // Create session directory if it doesn't exist
-if (!fsSync.existsSync(sessionDir)) {
-    fsSync.mkdirSync(sessionDir, { recursive: true });
+if (!fs.existsSync(sessionDir)) {
+    fs.mkdirSync(sessionDir, { recursive: true });
 }
 
 async function loadSession() {
