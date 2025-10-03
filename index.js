@@ -46,9 +46,13 @@ const {
   const chalk = require('chalk')
   const prefix = config.PREFIX
   // const { commands } = require('./command');
-  const ownerNumber = ['923493114170']
+  const ownerNumber = ['254740007567']
 
-  // Anti-crash handler
+// Add the missing getPrefix function
+  function getPrefix() {
+      return config.PREFIX || '.';
+  }  
+// Anti-crash handler
   process.on("uncaughtException", (err) => {
     console.error("[❗] Uncaught Exception:", err.stack || err);
   });
