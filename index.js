@@ -58,18 +58,18 @@ const {
 
   //=============================================
   const tempDir = path.join(os.tmpdir(), 'cache-temp')
-  if (!fsSync.existsSync(tempDir)) {
-      fsSync.mkdirSync(tempDir)
+  if (!fs.existsSync(tempDir)) {
+      fs.mkdirSync(tempDir)
   }
   
   const clearTempDir = () => {
-      fsSync.readdir(tempDir, (err, files) => {
+      fs.readdir(tempDir, (err, files) => {
           if (err) {
             console.error(chalk.red("[❌] Error clearing temp directory:", err.message));
             return;
           }
           for (const file of files) {
-              fsSync.unlink(path.join(tempDir, file), err => {
+              fs.unlink(path.join(tempDir, file), err => {
                   if (err) console.error(chalk.red(`[❌] Error deleting temp file ${file}:`, err.message));
               });
           }
