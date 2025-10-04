@@ -6,3 +6,9 @@ RUN apt-get update && \
     rm -rf /var/lib/apt/lists/*
 
 USER node
+
+# Make sure you have appropriate CMD or ENTRYPOINT for your application
+# Example:
+# COPY . .
+# RUN npm install
+# CMD ["npm", "start"]
