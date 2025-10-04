@@ -4,7 +4,7 @@ const { cmd } = require('../command');
 cmd({
   pattern: 'quiz',
   alias: ['q'],
-  desc: 'Fetches a quiz question from an API and presents it to the user.',
+  desc: 'Fetches a quiz question from an API with live timer',
   category: 'fun',
   use: '.quiz',
   filename: __filename,
@@ -24,17 +24,65 @@ cmd({
 
     // Send the question and options to the user
     const optionsText = options.map((option, index) => `${String.fromCharCode(65 + index)}. ${option}`).join('\n');
-    await reply(`🎯 *Question:* ${question.text}\n\n${optionsText}\n\nYou have 20 seconds to answer. Reply with the letter corresponding to your choice.`);
+    const questionMsg = await reply(`🎯 *Question:* ${question.text}\n\n${optionsText}\n\n⏰ Time left: 20 seconds\n\nReply with the letter (A, B, C, or D) corresponding to your choice.`);
 
-    // Store the correct answer for this user/chat
-    const quizData = {
-      correctAnswer,
-      options,
-      timestamp: Date.now()
-    };
-
-    // Create a message collector manually
+    let timeLeft = 20;
     let answered = false;
+    
+    // Create and send initial timer message
+    let timerMsg = await conn.sendMessage(from, { 
+      text: `🕒 Time remaining: *${timeLeft}s*` 
+    }, { quoted: questionMsg });
+
+    // Update timer every second
+    const timerInterval = setInterval(async () => {
+      if (answered) {
+        clearInterval(timerInterval);
+        return;
+      }
+      
+      timeLeft--;
+      
+      try {
+        // Edit the timer message with new time
+        await conn.sendMessage(from, {
+          text: `🕒 Time remaining: *${timeLeft}s*`,
+          edit: timerMsg.key
+        });
+      } catch (editError) {
+        // If edit fails, send new message (fallback)
+        try {
+          timerMsg = await conn.sendMessage(from, { 
+            text: `🕒 Time remaining: *${timeLeft}s*` 
+          });
+        } catch (e) {
+          // Ignore if can't send timer update
+        }
+      }
+
+      // Time's up
+      if (timeLeft <= 0 && !answered) {
+        clearInterval(timerInterval);
+        answered = true;
+        conn.ev.off('messages.upsert', messageHandler);
+        
+        // Update timer to show time's up
+        try {
+          await conn.sendMessage(from, {
+            text: "⏰ *TIME'S UP!*",
+            edit: timerMsg.key
+          });
+        } catch (e) {
+          await conn.sendMessage(from, { text: "⏰ *TIME'S UP!*" });
+        }
+        
+        await conn.sendMessage(from, { 
+          text: `⏰ Time's up! The correct answer was: *${correctAnswer}*` 
+        }, { quoted: questionMsg });
+      }
+    }, 1000);
+
+    // Message handler for answers
     const messageHandler = async (message) => {
       if (answered) return;
       
@@ -50,14 +98,30 @@ cmd({
         
         if (/^[A-D]$/.test(userAnswer)) {
           answered = true;
+          clearInterval(timerInterval);
           conn.ev.off('messages.upsert', messageHandler);
+          
+          // Update timer to show answered
+          try {
+            await conn.sendMessage(from, {
+              text: "✅ *ANSWERED*",
+              edit: timerMsg.key
+            });
+          } catch (e) {
+            // Ignore edit error
+          }
           
           const isCorrect = options[userAnswer.charCodeAt(0) - 65] === correctAnswer;
           
           if (isCorrect) {
-            await conn.sendMessage(from, { text: '✅ Correct! Well done! 🎉' }, { quoted: msg });
+            await conn.sendMessage(from, { 
+              text: '🎉 *CORRECT!* Well done! ✅\n\nThe answer was indeed: ' + correctAnswer 
+            }, { quoted: msg });
           } else {
-            await conn.sendMessage(from, { text: `❌ Incorrect. The correct answer was: ${correctAnswer}` }, { quoted: msg });
+            const userChoice = options[userAnswer.charCodeAt(0) - 65];
+            await conn.sendMessage(from, { 
+              text: `❌ *INCORRECT!*\n\nYou chose: ${userChoice}\nCorrect answer: *${correctAnswer}*` 
+            }, { quoted: msg });
           }
         }
       }
@@ -66,13 +130,14 @@ cmd({
     // Listen for messages
     conn.ev.on('messages.upsert', messageHandler);
 
-    // Set timeout to remove listener after 20 seconds
+    // Safety timeout to cleanup after 25 seconds
     setTimeout(() => {
       if (!answered) {
+        answered = true;
+        clearInterval(timerInterval);
         conn.ev.off('messages.upsert', messageHandler);
-        conn.sendMessage(from, { text: `⏰ Time's up! The correct answer was: ${correctAnswer}` });
       }
-    }, 20000);
+    }, 25000);
 
   } catch (error) {
     console.error('Error fetching quiz data:', error);
@@ -86,4 +151,4 @@ function shuffleArray(array) {
     const j = Math.floor(Math.random() * (i + 1));
     [array[i], array[j]] = [array[j], array[i]];
   }
-          }
+      }
