@@ -19,19 +19,19 @@ cmd({
     pattern: "menu",
     desc: "Show all bot commands in selection menu",
     category: "menu",
-    react: "⚡",
+    react: "🙊",
     filename: __filename
 },
 async (conn, mek, m, { from, sender, pushname, reply }) => {
     try {
         let totalCommands = Object.keys(commands).length;
         const caption = `*┏────〘 ᴍᴇʀᴄᴇᴅᴇs 〙───⊷*
-*┃ 🔸 Owner:* ${config.OWNER_NAME}
-*┃ 🔹 Prefix:* ${config.PREFIX}
-*┃ 🔸 Version:* 1.0.0 Beta
-*┃ 🔹 Platform:* Heroku
-*┃ 🔸 Total Commands:* ${totalCommands}
-*┃ 🔹 Runtime:* ${runtime(process.uptime())}
+*┃  Owner:* ${config.OWNER_NAME}
+*┃  Prefix:* ${config.PREFIX}
+*┃  Version:* 1.0.0 Beta
+*┃  Platform:* Heroku
+*┃  Total Commands:* ${totalCommands}
+*┃  Runtime:* ${runtime(process.uptime())}
 *┗──────────────⊷*
 
 *┏────〘 ᴍᴇʀᴄᴇᴅᴇs 〙───⊷*
