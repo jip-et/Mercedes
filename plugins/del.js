@@ -10,52 +10,56 @@ cmd({
     filename: __filename
 }, async (conn, mek, m, { from, reply, quoted, isOwner }) => {
     try {
-        if (!isOwner) {
-            return reply("❌ This is an owner-only command");
+        if (!isOwner) return reply("❌ This is an owner-only command");
+        if (!quoted) return reply("❌ Please reply to the message you want to delete");
+
+        let successCount = 0;
+
+        // Method 1: Try direct deletion first
+        try {
+            // Delete command message (always from bot)
+            await conn.sendMessage(from, {
+                delete: {
+                    id: mek.key.id,
+                    remoteJid: from,
+                    fromMe: true
+                }
+            });
+            successCount++;
+        } catch (e) {
+            console.log('Command delete failed:', e.message);
         }
 
-        if (!quoted) {
-            return reply("❌ Please reply to the message you want to delete");
-        }
-
-        let deletedCount = 0;
-
-        // Try to delete the quoted message (only if it's from the bot)
+        // Try to delete quoted message if it's from bot
         if (quoted.key.fromMe) {
             try {
                 await conn.sendMessage(from, {
                     delete: {
                         id: quoted.key.id,
                         remoteJid: from,
-                        fromMe: true,
-                        participant: quoted.key.participant
+                        fromMe: true
                     }
                 });
-                deletedCount++;
+                successCount++;
             } catch (e) {
-                console.log('Cannot delete quoted message:', e.message);
+                console.log('Quoted delete failed:', e.message);
+            }
+        } else {
+            // If quoted message is not from bot, use clear message method
+            try {
+                await conn.sendMessage(from, {
+                    text: "🚫 *Message cleared by admin*",
+                    edit: quoted.key
+                });
+                successCount++;
+            } catch (editError) {
+                console.log('Edit method failed:', editError.message);
             }
         }
 
-        // Always try to delete the command message (since it's from the bot)
-        try {
-            await conn.sendMessage(from, {
-                delete: {
-                    id: mek.key.id,
-                    remoteJid: from,
-                    fromMe: true,
-                    participant: mek.key.participant
-                }
-            });
-            deletedCount++;
-        } catch (e) {
-            console.log('Cannot delete command message:', e.message);
-        }
-
-        // Send feedback
-        if (deletedCount > 0) {
-            const feedback = await reply(`✅ Deleted ${deletedCount} message(s)`);
-            // Auto-delete feedback after 2 seconds
+        // Send temporary feedback
+        if (successCount > 0) {
+            const feedback = await reply(`🗑️ Cleared ${successCount} message(s)`);
             setTimeout(async () => {
                 try {
                     await conn.sendMessage(from, {
@@ -68,13 +72,13 @@ cmd({
                 } catch (e) {
                     // Ignore
                 }
-            }, 2000);
+            }, 1500);
         } else {
-            await reply("❌ Could not delete any messages");
+            await reply("❌ No messages could be cleared");
         }
 
     } catch (error) {
         console.error('Delete command error:', error);
-        reply("❌ Failed to delete messages.");
+        reply("❌ Failed to process delete command");
     }
 });
