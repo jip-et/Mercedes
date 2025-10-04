@@ -263,10 +263,7 @@ async function connectToWA() {
                 
                 const upMessage = `*┏──〔 Connected 〕───⊷*   
 *┇ Prefix: ${prefix}*
-*┇ Date: ${date}*
-*┇ Time: ${time}*
 *┇ Uptime: ${uptime}*
-*┇ Owner: ${ownername}*
 *┇ Follow Channel:*  
 *┇ https://shorturl.at/DYEi0*
 *┗──────────────⊷*
