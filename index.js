@@ -261,18 +261,20 @@ async function connectToWA() {
                 const username = "betingrich4";
                 const repoUrl = "https://github.com/betingrich4/Mercedes";
                 
-                const upMessage = `╭─〔 *mᥱrᥴᥱძᥱs ᥴ᥆ᥒᥒᥱᥴ𝗍ᥱძ* 〕  
-├─▸ *sᥙ⍴ᥱrᑲ* 
-╰─➤ 
-> *ᥡ᥆ᥙr ᑲ᥆𝗍 іs rᥱᥲძᥡ 𝖿᥆r ᥙsᥱ!*  
-
-╭──〔 🔗 *Information* 〕  
-├─ *Prefix:* = ${prefix}
-╰──➤*`;
+                const upMessage = `*┏──〔 Connected 〕───⊷*   
+*┇ Prefix: ${prefix}*
+*┇ Date: ${date}*
+*┇ Time: ${time}*
+*┇ Uptime: ${uptime}*
+*┇ Owner: ${ownername}*
+*┇ Follow Channel:*  
+*┇ https://shorturl.at/DYEi0*
+*┗──────────────⊷*
+> *Report any error to the dev*`;
                 
                 try {
                     await conn.sendMessage(jid, {
-                        image: { url: "https://i.ibb.co/hRVcfQGK/vision-v.jpg" },
+                        image: { url: "https://files.catbox.moe/wka4cq.jpg" },
                         caption: upMessage
                     }, { quoted: null });
                     console.log(chalk.green("[ 📩 ] Connection notice sent successfully with image"));
