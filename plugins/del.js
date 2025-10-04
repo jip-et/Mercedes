@@ -1,7 +1,7 @@
 const { cmd } = require('../command');
 
 cmd({
-    pattern: "x",
+    pattern: "del",
     alias: ["delete", "remove"],
     react: "🗑️",
     desc: "Delete quoted message and command message (Owner only)",
@@ -18,40 +18,63 @@ cmd({
             return reply("❌ Please reply to the message you want to delete");
         }
 
-        // Method 1: Using the correct Baileys delete format
-        try {
-            // Delete the quoted message first
-            await conn.sendMessage(from, {
-                delete: {
-                    id: quoted.key.id,
-                    participant: quoted.key.participant || quoted.key.remoteJid,
-                    remoteJid: from,
-                    fromMe: quoted.key.fromMe
-                }
-            });
-        } catch (deleteError) {
-            console.log('Delete quoted error:', deleteError);
+        let deletedCount = 0;
+
+        // Try to delete the quoted message (only if it's from the bot)
+        if (quoted.key.fromMe) {
+            try {
+                await conn.sendMessage(from, {
+                    delete: {
+                        id: quoted.key.id,
+                        remoteJid: from,
+                        fromMe: true,
+                        participant: quoted.key.participant
+                    }
+                });
+                deletedCount++;
+            } catch (e) {
+                console.log('Cannot delete quoted message:', e.message);
+            }
         }
 
-        // Wait a bit before deleting the command message
-        await new Promise(resolve => setTimeout(resolve, 500));
-
+        // Always try to delete the command message (since it's from the bot)
         try {
-            // Delete the command message
             await conn.sendMessage(from, {
                 delete: {
                     id: mek.key.id,
-                    participant: mek.key.participant || mek.key.remoteJid,
                     remoteJid: from,
-                    fromMe: mek.key.fromMe
+                    fromMe: true,
+                    participant: mek.key.participant
                 }
             });
-        } catch (deleteError2) {
-            console.log('Delete command error:', deleteError2);
+            deletedCount++;
+        } catch (e) {
+            console.log('Cannot delete command message:', e.message);
+        }
+
+        // Send feedback
+        if (deletedCount > 0) {
+            const feedback = await reply(`✅ Deleted ${deletedCount} message(s)`);
+            // Auto-delete feedback after 2 seconds
+            setTimeout(async () => {
+                try {
+                    await conn.sendMessage(from, {
+                        delete: {
+                            id: feedback.key.id,
+                            remoteJid: from,
+                            fromMe: true
+                        }
+                    });
+                } catch (e) {
+                    // Ignore
+                }
+            }, 2000);
+        } else {
+            await reply("❌ Could not delete any messages");
         }
 
     } catch (error) {
         console.error('Delete command error:', error);
-        reply("❌ Failed to delete messages. Make sure I have permission to delete.");
+        reply("❌ Failed to delete messages.");
     }
 });
