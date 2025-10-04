@@ -1,7 +1,7 @@
 const { cmd } = require('../command');
 
 cmd({
-    pattern: "del",
+    pattern: "x",
     alias: ["delete", "remove"],
     react: "🗑️",
     desc: "Delete quoted message and command message (Owner only)",
