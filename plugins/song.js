@@ -1,9 +1,9 @@
 const { cmd } = require('../command');
 const yts = require('yt-search');
-const config = require('../config');
+const axios = require('axios');
 
 cmd({
-    pattern: "son",
+    pattern: "song",
     alias: ["music", "mp3", "ytmusic"],
     desc: "Download music from YouTube",
     category: "media",
@@ -12,102 +12,82 @@ cmd({
 },
 async (conn, mek, m, { from, sender, reply, args }) => {
     try {
-        const ddownr = require('denethdev-ytmp3');
-
-        function extractYouTubeId(url) {
-            const regex = /(?:https?:\/\/)?(?:www\.)?(?:youtube\.com\/(?:watch\?v=|embed\/|v\/|shorts\/)|youtu\.be\/)([a-zA-Z0-9_-]{11})/;
-            const match = url.match(regex);
-            return match ? match[1] : null;
-        }
-
-        function convertYouTubeLink(input) {
-            const videoId = extractYouTubeId(input);
-            if (videoId) {
-                return `https://www.youtube.com/watch?v=${videoId}`;
-            }
-            return input;
-        }
-
         const q = args.join(' ');
 
         if (!q || q.trim() === '') {
-            return await reply('*`Need YT_URL or Title`*');
+            return await reply('❌ Please provide a song name or YouTube URL');
         }
 
-        const fixedQuery = convertYouTubeLink(q.trim());
-
-        // Send searching reaction
         await conn.sendMessage(from, { react: { text: '🔍', key: mek.key } });
 
-        const search = await yts(fixedQuery);
-        if (!search?.videos || search.videos.length === 0) {
-            return await reply('*`No results found`*');
+        let videoUrl = q;
+        let videoData = null;
+
+        // If it's not a URL, search for the video
+        if (!q.includes('youtube.com') && !q.includes('youtu.be')) {
+            const search = await yts(q);
+            if (!search?.videos || search.videos.length === 0) {
+                return await reply('❌ No results found for your search');
+            }
+            videoData = search.videos[0];
+            videoUrl = videoData.url;
+        } else {
+            // If it's a URL, get video info
+            const search = await yts({ videoId: extractVideoId(videoUrl) });
+            videoData = search;
         }
 
-        const data = search.videos[0];
-        if (!data) {
-            return await reply('*`No results found`*');
+        if (!videoData) {
+            return await reply('❌ Could not get video information');
         }
 
-        const url = data.url;
         const desc = `
-*ᴍᴇʀᴄᴇᴅᴇs ᴍᴅ*
+*🎵 ᴍᴇʀᴄᴇᴅᴇs ᴍᴜsɪᴄ*
 
-🎶 *Title:* ${data.title}
-⏱️ *Duration:* ${data.timestamp}
-📅 *Uploaded:* ${data.ago}
-👁️ *Views:* ${data.views}
+📌 *Title:* ${videoData.title}
+⏱️ *Duration:* ${videoData.timestamp}
+👁️ *Views:* ${videoData.views}
+🔗 *Channel:* ${videoData.author.name}
 
-> © ᴍᴇʀᴄᴇᴅᴇs ᴍᴅ 🟢
+> Use this online converter:
+> 🌐 https://ytmp3.cc
+> 🔗 Copy this URL: ${videoUrl}
+
+*Or try these alternatives:*
+• y2mate.com
+• ytmp3.nu
+• onlinevideoconverter.com
 `;
 
-        // Send song info with thumbnail
+        // Send song info with download instructions
         await conn.sendMessage(from, {
-            image: { url: data.thumbnail },
+            image: { url: videoData.thumbnail },
             caption: desc,
-            contextInfo: {
-                mentionedJid: [],
-                forwardingScore: 1,
-                isForwarded: true,
-                forwardedNewsletterMessageInfo: {
-                    newsletterJid: '120363402434929024@newsletter',
-                    newsletterName: "ᴍᴇʀᴄᴇᴅᴇs ᴍᴅ 🟢",
-                    serverMessageId: 999
+            buttons: [
+                {
+                    buttonId: `!convert ${videoUrl}`,
+                    buttonText: { displayText: '🔗 Copy URL' },
+                    type: 1
+                },
+                {
+                    buttonId: `!search ${q}`,
+                    buttonText: { displayText: '🔍 Search Again' },
+                    type: 1
                 }
-            }
+            ]
         }, { quoted: mek });
 
-        // Download reaction
-        await conn.sendMessage(from, { react: { text: '⬇️', key: mek.key } });
-
-        // Download the audio
-        const result = await ddownr.download(url, 'mp3');
-        if (!result || !result.downloadUrl) {
-            throw new Error("Failed to generate download URL");
-        }
-
-        const downloadLink = result.downloadUrl;
-
-        // Upload reaction
-        await conn.sendMessage(from, { react: { text: '⬆️', key: mek.key } });
-
-        // Send the audio file
-        await conn.sendMessage(from, {
-            audio: { url: downloadLink },
-            mimetype: "audio/mpeg",
-            fileName: `${data.title.replace(/[^\w\s]/gi, '')}.mp3`,
-            ptt: false
-        }, { quoted: mek });
-
-        // Success reaction
         await conn.sendMessage(from, { react: { text: '✅', key: mek.key } });
 
     } catch (err) {
-        console.error("Song download error:", err);
-        
-        // Error reaction
+        console.error("Song command error:", err);
         await conn.sendMessage(from, { react: { text: '❌', key: mek.key } });
-        
-        await reply("*`Error occurred while downloading: " + (err.message || "Unknown error") + "`*");
+        await reply('❌ Error: ' + (err.message || 'Failed to process request'));
     }
 });
+
+function extractVideoId(url) {
+    const regex = /(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([^"&?\/\s]{11})/;
+    const match = url.match(regex);
+    return match ? match[1] : null;
+}
